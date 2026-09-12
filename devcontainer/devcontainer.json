@@ -1,0 +1,5 @@
+{
+  "name": "microjail",
+  "build": { "dockerfile": "../Dockerfile" },
+  "runArgs": ["--privileged"]
+}
