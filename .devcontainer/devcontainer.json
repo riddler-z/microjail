@@ -4,7 +4,7 @@
 		"context": "..",
 		"dockerfile": "../Dockerfile"
 	},
-	"runArgs": ["--privileged"],
+	"runArgs": ["--privileged", "--cgroupns=host"],
 	"customizations": {
 		"vscode": {
 			"extensions": ["ms-vscode.cpptools"]

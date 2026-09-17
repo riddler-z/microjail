@@ -5,8 +5,23 @@
 #include <unistd.h> //unix standard - gives fork() and getpid()
 #include <stdlib.h> //exit() lives in this library
 #include <sys/wait.h> //where macros for waitpid() live
+#include <sys/stat.h>  // for mkdir()
+#include <errno.h>
 
 #define STACK_SIZE (1024 * 1024)
+
+int write_to_file(const char *path, const char *value)
+{
+    FILE *f = fopen(path, "w");
+    if (f == NULL)
+    {
+        perror(path);
+        return -1;
+    }
+    fprintf(f, "%s", value);
+    fclose(f);
+    return 0;
+}
 
 int child_funct(void *args)
 {
@@ -24,7 +39,7 @@ int child_funct(void *args)
         perror("Couldn't change directory");
         exit(1);
     }
-    if (execvp(exec_args[0], args) == -1)
+    if (execvp(exec_args[0], exec_args) == -1)
     {
         perror("Execvp failed");
         exit(1);
@@ -34,6 +49,24 @@ int child_funct(void *args)
 
 int main(void) 
 {
+    if (mkdir("/sys/fs/cgroup/microjail", 0755) == -1 && errno != EEXIST) 
+    {
+        perror("mkdir cgroup folder failed.");
+        exit(1);
+    }
+    if (write_to_file("/sys/fs/cgroup/cgroup.subtree_control", "+cpu +memory") == -1)
+    {
+        exit(1);
+    }
+    if (write_to_file("/sys/fs/cgroup/microjail/memory.max", "134217728") == -1)
+    {
+        exit(1);
+    }
+    if (write_to_file("/sys/fs/cgroup/microjail/cpu.max", "50000 100000") == -1)
+    {
+        exit(1);
+    }
+
     char *stack = malloc(STACK_SIZE);
     if (stack == NULL)
     {
@@ -49,6 +82,13 @@ int main(void)
         perror("clone failed");
         exit(1);
     }
+    char pid_str[16];
+    snprintf(pid_str, sizeof(pid_str), "%d", pid);
+    if (write_to_file("/sys/fs/cgroup/microjail/cgroup.procs", pid_str) == -1) 
+    {
+        exit(1);
+    }
+
     int status;
     pid_t wpid = waitpid(pid, &status, 0); //capture return value and compare directly to -1
     if (wpid == -1)
