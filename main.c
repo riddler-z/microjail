@@ -1,52 +1,67 @@
+#define _GNU_SOURCE //needed for CLONE_* flags from <sched.h>
+#include <sched.h> //to get flags for clone() in milestone 3
 #include <stdio.h> // standard I/O 
 #include <sys/types.h> //defines system types, including *_t
 #include <unistd.h> //unix standard - gives fork() and getpid()
 #include <stdlib.h> //exit() lives in this library
 #include <sys/wait.h> //where macros for waitpid() live
 
-int main(void) {
-    printf("Before fork: I am process %d\n", getpid());
-    pid_t pid = fork();
-    /* fork() is a function that creates a new process
-    returns a pid_t variable named pid - returns whatever 
-    type the system uses to represent pid's
-    */
+#define STACK_SIZE (1024 * 1024)
 
-    if (pid < 0){
-        perror("fork failed.");
-    } else if (pid == 0){
-        printf("PID is %d, fork returned %d to me\n", getpid(), pid);
-        char *args[] = {"/bin/jailed_hello", "hello from the child process", NULL};
-        int chroot_result = chroot("jail");
-        if (chroot_result == -1){
-            perror("Root folder not found.");
-            exit(1);
-        }
-        int chdir_result = chdir("/");
-        if (chdir_result == -1){
-            perror("failed.");
-            exit(1);
-        }
-        if (execvp(args[0], args) == -1){ //exec always returns -1 on failure since its return type is int
-            perror("Execvp failed");
-            exit(1);
-        }
-    } else {
-        printf("PID is %d, fork returned %d to me\n", getpid(), pid);
-        
-        int status;
-        pid_t wpid = waitpid(pid, &status, 0); //capture return value and compare directly to -1
+int child_funct(void *args)
+{
+    printf("inside the new namespace, my PID is %d\n", getpid());
+    char *exec_args[] = {"/bin/jailed_hello", "hello from the child process", NULL};
+    int chroot_result = chroot("jail");
+    if (chroot_result == -1)
+    {
+        perror("Root folder not found.");
+        exit(1);
+    }
+    int chdir_result = chdir("/");
+    if (chdir_result == -1)
+    {
+        perror("Couldn't change directory");
+        exit(1);
+    }
+    if (execvp(exec_args[0], args) == -1)
+    {
+        perror("Execvp failed");
+        exit(1);
+    }
+    return 1;
+}
 
-        if (wpid == -1){
-            perror("Waitpid failed.");
-            exit(1);
-        }
-
-        if (WIFEXITED(status)) {
-            printf("Child exited normally with status %d\n", WEXITSTATUS(status));
-        } else {
-            printf("Child did not exit normally\n");
-        }
+int main(void) 
+{
+    char *stack = malloc(STACK_SIZE);
+    if (stack == NULL)
+    {
+        perror("malloc failed");
+        exit(1);
+    }
+    char *stack_top = stack + STACK_SIZE; //stack grows downwards in memory so top is high address
+    pid_t pid = clone(child_funct, stack_top, 
+        CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWNET | SIGCHLD,
+        NULL);
+    if (pid == -1)
+    {
+        perror("clone failed");
+        exit(1);
+    }
+    int status;
+    pid_t wpid = waitpid(pid, &status, 0); //capture return value and compare directly to -1
+    if (wpid == -1)
+    {
+        perror("Waitpid failed.");
+        exit(1);
+    }
+    if (WIFEXITED(status)) 
+    {
+        printf("Child exited normally with status %d\n", WEXITSTATUS(status));
+    } else 
+    {
+        printf("Child did not exit normally\n");
     }
     return 0; 
 }
