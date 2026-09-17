@@ -145,5 +145,13 @@ int main(void)
     {
         printf("Child did not exit normally\n");
     }
+
+    int rmdir_result = rmdir("/sys/fs/cgroup/microjail");
+    if (rmdir_result == -1) {
+        perror("rmdir cgroup folder failed");
+    }
+
+    free(stack);
+    
     return 0;
 }
