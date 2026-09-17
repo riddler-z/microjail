@@ -16,7 +16,17 @@ int main(void) {
         perror("fork failed.");
     } else if (pid == 0){
         printf("PID is %d, fork returned %d to me\n", getpid(), pid);
-        char *args[] = {"/bin/echo", "hello from the child process", NULL};
+        char *args[] = {"/bin/jailed_hello", "hello from the child process", NULL};
+        int chroot_result = chroot("jail");
+        if (chroot_result == -1){
+            perror("Root folder not found.");
+            exit(1);
+        }
+        int chdir_result = chdir("/");
+        if (chdir_result == -1){
+            perror("failed.");
+            exit(1);
+        }
         if (execvp(args[0], args) == -1){ //exec always returns -1 on failure since its return type is int
             perror("Execvp failed");
             exit(1);
